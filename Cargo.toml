@@ -28,8 +28,7 @@ log = '0.4'
 enum-repr-derive = '0.1.4'
 derive_builder = '0.9.0'
 num-traits = '0.2.14'
+libcec-sys = { git = "https://github.com/MdLC/libcec-sys.git", branch="feature/use-system-library-when-available" }
 
-[dependencies.libcec-sys]
-version = '1.0.7'
 [badges.maintenance]
 status = 'passively-maintained'
