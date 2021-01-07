@@ -697,14 +697,14 @@ mod cec_device_type_vec_tests {
 }
 
 struct CecCallbacks {
-    pub key_press_callback: Option<Box<dyn FnMut(CecKeypress) + Send>>,
-    pub command_received_callback: Option<Box<dyn FnMut(CecCommand) + Send>>,
-    // pub onSourceActivated: FnSourceActivated,
+    pub key_press_callback: Option<Box<FnKeyPress>>,
+    pub command_received_callback: Option<Box<FnCommand>>,
+    pub source_activated_callback: Option<Box<FnSourceActivated>>,
 }
 
 pub type FnKeyPress = dyn FnMut(CecKeypress) + Send;
 pub type FnCommand = dyn FnMut(CecCommand) + Send;
-pub type FnSourceActivated = dyn FnMut(CecLogicalAddress, bool);
+pub type FnSourceActivated = dyn FnMut(CecLogicalAddress, bool) + Send;
 
 extern "C" fn key_press_callback(rust_callbacks: *mut c_void, keypress_raw: *const cec_keypress) {
     trace!("key_press_callback");
@@ -742,6 +742,27 @@ extern "C" fn command_received_callback(
     }
 }
 
+extern "C" fn source_activated_callback(
+    rust_callbacks: *mut c_void,
+    logical_address: cec_logical_address,
+    activated: u8,
+) {
+    trace!("source_activated_callback");
+    let rust_callbacks: *mut CecCallbacks = rust_callbacks.cast();
+    if let Some(rust_callbacks) = unsafe { rust_callbacks.as_mut() } {
+        trace!(
+            "source_activated_callback: logical_address {} activated {}",
+            logical_address,
+            activated
+        );
+        if let Some(rust_callback) = &mut rust_callbacks.source_activated_callback {
+            if let Ok(logical_address) = logical_address.try_into() {
+                rust_callback(logical_address, activated != 0);
+            }
+        }
+    }
+}
+
 static mut CALLBACKS: ICECCallbacks = ICECCallbacks {
     logMessage: Option::None,
     keyPress: Option::Some(key_press_callback),
@@ -749,7 +770,7 @@ static mut CALLBACKS: ICECCallbacks = ICECCallbacks {
     configurationChanged: Option::None,
     alert: Option::None,
     menuStateChanged: Option::None,
-    sourceActivated: Option::None,
+    sourceActivated: Option::Some(source_activated_callback),
 };
 
 #[derive(Builder)]
@@ -759,6 +780,8 @@ pub struct CecConnectionCfg {
     pub key_press_callback: Option<Box<FnKeyPress>>,
     #[builder(default, setter(strip_option), pattern = "owned")]
     pub command_received_callback: Option<Box<FnCommand>>,
+    #[builder(default, setter(strip_option), pattern = "owned")]
+    pub source_activated_callback: Option<Box<FnSourceActivated>>,
 
     pub port: String,
 
@@ -1086,6 +1109,7 @@ impl CecConnectionCfg {
         let pinned_callbacks = Box::pin(CecCallbacks {
             key_press_callback: std::mem::replace(&mut self.key_press_callback, None),
             command_received_callback: std::mem::replace(&mut self.command_received_callback, None),
+            source_activated_callback: std::mem::replace(&mut self.source_activated_callback, None),
         });
         let rust_callbacks_as_void_ptr = &*pinned_callbacks as *const _ as *mut _;
         let init_video_standalone = self.init_video_standalone;
