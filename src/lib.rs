@@ -15,11 +15,12 @@ use libcec_sys::{
     cec_logical_addresses, libcec_audio_get_status, libcec_audio_mute, libcec_audio_toggle_mute,
     libcec_audio_unmute, libcec_clear_configuration, libcec_close, libcec_configuration,
     libcec_connection_t, libcec_destroy, libcec_enable_callbacks, libcec_get_active_source,
-    libcec_get_device_power_status, libcec_initialise, libcec_is_active_source, libcec_mute_audio,
-    libcec_open, libcec_power_on_devices, libcec_send_key_release, libcec_send_keypress,
-    libcec_set_active_source, libcec_set_inactive_view, libcec_set_logical_address,
-    libcec_standby_devices, libcec_switch_monitoring, libcec_transmit, libcec_volume_down,
-    libcec_volume_up, ICECCallbacks, LIBCEC_VERSION_CURRENT,
+    libcec_get_device_power_status, libcec_init_video_standalone, libcec_initialise,
+    libcec_is_active_source, libcec_mute_audio, libcec_open, libcec_power_on_devices,
+    libcec_send_key_release, libcec_send_keypress, libcec_set_active_source,
+    libcec_set_inactive_view, libcec_set_logical_address, libcec_standby_devices,
+    libcec_switch_monitoring, libcec_transmit, libcec_volume_down, libcec_volume_up, ICECCallbacks,
+    LIBCEC_VERSION_CURRENT,
 };
 use num_traits::ToPrimitive;
 use std::convert::{TryFrom, TryInto};
@@ -764,6 +765,10 @@ pub struct CecConnectionCfg {
     #[builder(default = "Duration::from_secs(5)")]
     pub open_timeout: Duration,
 
+    #[doc = "< whether to call libcec_init_video_standalone when creating this connection (NOTE: this should only be set to true once per process)"]
+    #[builder(default)]
+    pub init_video_standalone: bool,
+
     //
     // cec_configuration items follow up
     //
@@ -1056,7 +1061,6 @@ impl CecConnection {
     // extern DECLSPEC int libcec_is_libcec_active_source(libcec_connection_t connection);
     // extern DECLSPEC int libcec_get_device_information(libcec_connection_t connection, const char* strPort, CEC_NAMESPACE libcec_configuration* config, uint32_t iTimeoutMs);
     // extern DECLSPEC const char* libcec_get_lib_info(libcec_connection_t connection);
-    // extern DECLSPEC void libcec_init_video_standalone(libcec_connection_t connection);
     // extern DECLSPEC uint16_t libcec_get_adapter_vendor_id(libcec_connection_t connection);
     // extern DECLSPEC uint16_t libcec_get_adapter_product_id(libcec_connection_t connection);
     // extern DECLSPEC int8_t libcec_detect_adapters(libcec_connection_t connection, CEC_NAMESPACE cec_adapter_descriptor* deviceList, uint8_t iBufSize, const char* strDevicePath, int bQuickScan);
@@ -1084,6 +1088,7 @@ impl CecConnectionCfg {
             command_received_callback: std::mem::replace(&mut self.command_received_callback, None),
         });
         let rust_callbacks_as_void_ptr = &*pinned_callbacks as *const _ as *mut _;
+        let init_video_standalone = self.init_video_standalone;
         let port = CString::new(self.port.clone()).expect("Invalid port name");
         let open_timeout = self.open_timeout.as_millis() as u32;
         let connection = CecConnection(
@@ -1093,6 +1098,10 @@ impl CecConnectionCfg {
         );
         if connection.1 as usize == 0 {
             return Err(CecConnectionResultError::LibInitFailed);
+        }
+
+        if init_video_standalone {
+            unsafe { libcec_init_video_standalone(connection.1) };
         }
 
         if unsafe { libcec_open(connection.1, port.as_ptr(), open_timeout) } == 0 {
