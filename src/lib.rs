@@ -889,6 +889,20 @@ pub enum CecConnectionResultError {
     TransmitFailed,
 }
 
+impl std::fmt::Display for CecConnectionResultError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::LibInitFailed => "cec: library initialization failed",
+            Self::NoAdapterFound => "cec: no adapter found",
+            Self::AdapterOpenFailed => "cec: adapter open failed",
+            Self::CallbackRegistrationFailed => "cec: callback registration failed",
+            Self::TransmitFailed => "cec: transmit failed",
+        })
+    }
+}
+
+impl std::error::Error for CecConnectionResultError {}
+
 pub struct CecConnection(
     pub CecConnectionCfg,
     libcec_connection_t,
