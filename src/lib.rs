@@ -222,7 +222,7 @@ mod datapacket_tests {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct CecCommand {
     #[doc = "< the logical address of the initiator of this message"]
     pub initiator: CecLogicalAddress,
